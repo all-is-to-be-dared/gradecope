@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["gradecope-switchboard"]
+
+[workspace.dependencies]
+tokio = { version = "1.49.0", features = ["net", "rt"] }
+reqwest = { version = "0.13.1", features = ["rustls", "json"] }
+tokio-tungstenite = { version = "0.28.0" }
+clap = { version = "4.5.54", features = ["derive"] }
+tracing = { version = "0.1.44" }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+eyre = { version = "0.6.12" }
+thiserror = { version = "2.0.17" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
+uuid = { version = "1.19.0", features = ["serde"] }
+bytes = { version = "1.11.0" }
