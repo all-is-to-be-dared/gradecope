@@ -1,0 +1,18 @@
+[package]
+name = "gradecope-runner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gradecope-proto = { path = "../gradecope-proto" }
+
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process"] }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }
+tarpc = { workspace = true }
