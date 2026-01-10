@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ssh gradecope.*****.net gradecope-proxied-cli $*
