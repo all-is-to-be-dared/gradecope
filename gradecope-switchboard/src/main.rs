@@ -31,6 +31,9 @@ pub struct Opts {
     /// Path, relative to user account home directories, where submit socket is located
     #[arg(long, default_value = "gradecope-submit.sock")]
     submit_socket_path: String,
+    /// Path of admin socket
+    #[arg(long, default_value = "/home/gradecope/gradecope-admin.sock")]
+    admin_socket_path: String,
 
     // --- RUNNER SERVER CONFIG ---
     /// Address to which the thin WebSocket server for the runner to call home to should be bound.

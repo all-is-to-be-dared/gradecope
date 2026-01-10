@@ -106,3 +106,10 @@ if ! -pq-run "INSERT INTO users (id, name) VALUES ('${UUID}', '$STUDENT');" ; th
 else
   printf "Added user ${STUSR}${STUDENT}${RST} to database\n"
 fi
+
+# -------------------------------------------------------------------------------------------------
+# Notify currently running instance, if it exists
+
+cat <<- HEREDOC | socat - UNIX-CONNECT:/home/gradecope/gradecope-admin.sock
+{"jsonrpc": "2.0", "method": "add-user", "params": {"user": "${STUDENT}"}}
+HEREDOC
