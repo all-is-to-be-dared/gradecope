@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 gradecope-proto = { path = "../gradecope-proto" }
 
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "fs", "io-util"] }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -16,3 +16,6 @@ tracing-subscriber = { workspace = true }
 eyre = { workspace = true }
 bytes = { workspace = true }
 tarpc = { workspace = true }
+yusb = "0.1.2"
+chrono = "0.4.42"
+async-tempfile = "0.7.0"

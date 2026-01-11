@@ -13,3 +13,5 @@
     List out currently released labs and the user's checkoff status
 - domain: gradecope.*****.net
 - postgres backups
+- gradecope-device-reset
+  - reset filesystem using JTAG and a stub program

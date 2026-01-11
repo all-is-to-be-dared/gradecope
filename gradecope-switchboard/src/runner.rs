@@ -9,7 +9,7 @@ use axum::{
 };
 use bytes::{Buf as _, BufMut as _, BytesMut};
 use futures::{SinkExt, StreamExt as _};
-use gradecope_proto::runner::{JobResponse, Switchboard as _};
+use gradecope_proto::runner::{JobResponse, JobResult, Log, Switchboard as _};
 use tarpc::{context::Context, server::Channel as _};
 use tokio::task::JoinHandle;
 
@@ -28,6 +28,24 @@ impl gradecope_proto::runner::Switchboard for SwitchboardServer {
     async fn request_job(self, _context: Context) -> JobResponse {
         tracing::debug!("SwitchboardServer::request_job called");
         JobResponse::Unavailable
+    }
+
+    async fn job_stopped(
+        self,
+        context: ::tarpc::context::Context,
+        id: uuid::Uuid,
+        result: JobResult,
+        log: Log,
+    ) -> () {
+        todo!()
+    }
+
+    async fn request_cancellation_notifications(
+        self,
+        context: ::tarpc::context::Context,
+        currently_running: Vec<uuid::Uuid>,
+    ) -> Vec<uuid::Uuid> {
+        todo!()
     }
 }
 
