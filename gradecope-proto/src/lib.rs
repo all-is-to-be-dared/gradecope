@@ -1,4 +1,5 @@
 pub mod runner {
+    use chrono::{DateTime, Utc};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -34,6 +35,14 @@ pub mod runner {
         pub truncated: bool,
     }
 
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub struct JobTermination {
+        pub job_id: uuid::Uuid,
+        pub log: Log,
+        pub result: JobResult,
+        pub now: DateTime<Utc>,
+    }
+
     #[tarpc::service]
     pub trait Switchboard {
         /// Request a job from the switchboard.
@@ -41,7 +50,7 @@ pub mod runner {
 
         /// Notify the switchboard that the given job has stopped running, whether that's due to
         /// running to completion or to be canceled / having an error.
-        async fn job_stopped(id: uuid::Uuid, result: JobResult, log: Log);
+        async fn job_stopped(termination: JobTermination);
 
         /// Request that the switchboard tell the client the IDs of any jobs currently assigned to
         /// the client that were canceled, but have not yet stopped.

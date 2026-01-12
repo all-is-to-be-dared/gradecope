@@ -1,4 +1,4 @@
-#![feature(iterator_try_collect, iter_intersperse)]
+#![feature(iterator_try_collect, iter_intersperse, try_blocks)]
 
 use std::{
     fmt::Display,
@@ -14,6 +14,11 @@ mod runner;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
+    /// Interval, in milliseconds, at which the runner should poll the server for jobs and/or
+    /// cancellations.
+    #[arg(long, default_value_t = 100)]
+    poll_interval_ms: u64,
+
     #[arg(long, required = true)]
     remote: String,
 
@@ -66,7 +71,7 @@ impl Display for DeviceOpt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeviceCtl {
     pub serial: PathBuf,
     pub usb_dev: yusb::Device,
@@ -121,32 +126,11 @@ async fn main() {
         return;
     }
 
-    // spawn runner workers
-
-    let mut queues = vec![];
-    let mut handles = vec![];
+    let mut devices = vec![];
     for dev_ctl in ctl_devices {
-        let (ctl_tx, ctl_rx) = tokio::sync::mpsc::channel(1);
-        let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(1);
-        let jh = tokio::spawn(runner::worker(
-            Uuid::new_v4(),
-            dev_ctl,
-            ctl_rx,
-            msg_tx,
-            opts.test_runner.clone(),
-        ));
-        queues.push((ctl_tx, msg_rx));
-        handles.push(jh);
+        devices.push((Uuid::new_v4(), dev_ctl));
     }
-
-    // spawn connection worker
-    if let Err(e) = connection::connect(opts.remote, opts.id, queues).await {
+    if let Err(e) = connection::connect(opts, devices).await {
         tracing::error!("Connection worker failed with error: {e:?}");
-    }
-    // at this point, the queues have all dropped, so runner workers should also go down
-    for hdl in handles {
-        if let Err(e) = hdl.await {
-            tracing::error!("Error waiting for runner worker task handle: {e:?}");
-        }
     }
 }

@@ -9,7 +9,7 @@ use axum::{
 };
 use bytes::{Buf as _, BufMut as _, BytesMut};
 use futures::{SinkExt, StreamExt as _};
-use gradecope_proto::runner::{JobResponse, JobResult, Log, Switchboard as _};
+use gradecope_proto::runner::{JobResponse, JobTermination, Switchboard as _};
 use tarpc::{context::Context, server::Channel as _};
 use tokio::task::JoinHandle;
 
@@ -32,20 +32,19 @@ impl gradecope_proto::runner::Switchboard for SwitchboardServer {
 
     async fn job_stopped(
         self,
-        context: ::tarpc::context::Context,
-        id: uuid::Uuid,
-        result: JobResult,
-        log: Log,
+        _context: ::tarpc::context::Context,
+        termination: JobTermination,
     ) -> () {
-        todo!()
+        tracing::info!("received termination: {termination:?}");
     }
 
     async fn request_cancellation_notifications(
         self,
-        context: ::tarpc::context::Context,
+        _context: ::tarpc::context::Context,
         currently_running: Vec<uuid::Uuid>,
     ) -> Vec<uuid::Uuid> {
-        todo!()
+        tracing::info!("received cancellation request: {currently_running:?}");
+        vec![]
     }
 }
 
@@ -57,9 +56,9 @@ async fn connected_runner(peer_addr: SocketAddr, server_ctx: Arc<ServerCtx>, mut
 
     let switchboard_server = SwitchboardServer { server_ctx };
 
-    let (bidi_a, mut bidi_b) = tarpc::transport::channel::bounded(16);
+    let (mut client_channel, server_channel) = tarpc::transport::channel::bounded(16);
 
-    let server = tarpc::server::BaseChannel::with_defaults(bidi_a);
+    let server = tarpc::server::BaseChannel::with_defaults(server_channel);
     let jh = tokio::spawn(server.execute(switchboard_server.serve()).for_each(
         |response| async move {
             tokio::spawn(response);
@@ -87,7 +86,7 @@ async fn connected_runner(peer_addr: SocketAddr, server_ctx: Arc<ServerCtx>, mut
                     break
                 }
             }
-            msg = bidi_b.next() => {
+            msg = client_channel.next() => {
                 match msg {
                     Some(Ok(resp)) => {
                         let s = match serde_json::to_string(&resp) {
@@ -123,7 +122,7 @@ async fn connected_runner(peer_addr: SocketAddr, server_ctx: Arc<ServerCtx>, mut
                                         continue
                                     }
                                 };
-                                if let Err(e) = bidi_b.send(t).await {
+                                if let Err(e) = client_channel.send(t).await {
                                     tracing::error!("Dropping incoming message from runner: {e:?}");
                                 }
                             },

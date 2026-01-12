@@ -3,40 +3,26 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
-use gradecope_proto::runner::{JobResult, JobSpec, Log};
-use tokio::{io::AsyncReadExt, sync::mpsc::Sender};
-use tracing::Level;
+use chrono::Utc;
+use gradecope_proto::runner::{JobResult, JobSpec, JobTermination, Log};
+use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-pub enum WorkerCtl {
-    Start {
-        spec: JobSpec,
-        cancel: tokio::sync::oneshot::Receiver<()>,
-    },
-}
-pub enum WorkerMsg {
-    Started {
-        job_id: Uuid,
-        now: DateTime<Utc>,
-    },
-    Stopped {
-        job_id: Uuid,
-        log: Log,
-        result: JobResult,
-        now: DateTime<Utc>,
-    },
-}
-
-#[tracing::instrument(skip(input, output, test_runner))]
-pub async fn worker(
+#[tracing::instrument(
+    fields(
+        job.id = %spec.id, job.repo = spec.repo_path, job.commit = spec.commit_hash,
+        job.spec = spec.job_spec, worker.id = %worker_id),
+    skip(test_runner, cancel, output)
+)]
+pub async fn run_job(
     worker_id: Uuid,
     dev_ctl: crate::DeviceCtl,
-    mut input: tokio::sync::mpsc::Receiver<WorkerCtl>,
-    output: Sender<WorkerMsg>,
     test_runner: PathBuf,
+    spec: JobSpec,
+    mut cancel: tokio::sync::oneshot::Receiver<()>,
+    output: tokio::sync::oneshot::Sender<JobTermination>,
 ) {
-    let setup_args = |cmd: &mut tokio::process::Command, spec: &JobSpec, logfile: &Path| {
+    let setup_args = |cmd: &mut tokio::process::Command, logfile: &Path| {
         cmd.arg(worker_id.to_string());
         cmd.arg(spec.id.to_string());
         cmd.arg(&spec.repo_path);
@@ -57,44 +43,21 @@ pub async fn worker(
         cmd.arg(last_port_str);
         cmd.arg(port_prefix_str);
     };
-    while let Some(ctl) = input.recv().await {
-        let WorkerCtl::Start { spec, mut cancel } = ctl;
 
-        // When a WorkerCtl::Start comes in, we spawn() a task that runs
-        //
-        //   bash /home/gradecope/runners/{job_spec}-run.sh
-        //        {worker_id}
-        //        {id} {repo} {commit}
-        //        {logfile}
-        //        {serial} {dev-port} {dev-bus}-{dev-ports}.*
-        //
-        // When a WorkerCtl::Cancel comes in, we send a KILL to the child process.
-        //
-        // Cleanup is then done by
-        //
-        //   bash /home/gradecope/runners/{job_spec}-cleanup.sh
-        //        {worker_id}
-        //        {id} {repo} {commit}
-        //        {logfile}
-        //        {serial} {dev-port} {dev-bus}-{dev-ports}.*
-
-        let span = tracing::span!(
-            Level::TRACE,
-            "worker^start",
-            id = format!("{}", spec.id),
-            repo = spec.repo_path,
-            commit = spec.commit_hash,
-            spec = spec.job_spec
-        );
-        let _enter = span.enter();
-
+    let result = 'run: {
         let logfile = match async_tempfile::TempFile::new().await {
             Ok(f) => f,
             Err(e) => {
-                tracing::error!(
-                    "Failed to create temporary log file for job: {e:?}, killing worker"
-                );
-                return;
+                tracing::error!("Failed to create temporary log file for job: {e:?}");
+                break 'run JobTermination {
+                    job_id: spec.id,
+                    log: Log {
+                        log: vec![],
+                        truncated: false,
+                    },
+                    result: JobResult::Error,
+                    now: Utc::now(),
+                };
             }
         };
 
@@ -102,28 +65,36 @@ pub async fn worker(
 
         let mut cmd = tokio::process::Command::new("bash");
         cmd.arg(test_runner.join(format!("{}-run.sh", spec.job_spec)));
-        setup_args(&mut cmd, &spec, logfile.file_path());
+        setup_args(&mut cmd, logfile.file_path());
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
                 tracing::error!(
-                    "Failed to spawn {}-cleanup.sh process: {e:?}, killing worker",
+                    "Failed to spawn {}-cleanup.sh process: {e:?}",
                     spec.job_spec
                 );
-                return;
+                break 'run JobTermination {
+                    job_id: spec.id,
+                    log: Log {
+                        log: vec![],
+                        truncated: false,
+                    },
+                    result: JobResult::Error,
+                    now: Utc::now(),
+                };
             }
         };
         let pid = child.id();
 
         let timeout = tokio::time::sleep(Duration::from_secs(120));
 
-        if let Err(e) = output.try_send(WorkerMsg::Started {
-            job_id: spec.id,
-            now: Utc::now(),
-        }) {
-            tracing::error!("Worker failed to send job-started message: {e:?}, killing worker");
-            return;
-        }
+        // if let Err(e) = output.try_send(WorkerMsg::Started {
+        //     job_id: spec.id,
+        //     now: Utc::now(),
+        // }) {
+        //     tracing::error!("Worker failed to send job-started message: {e:?}, killing worker");
+        //     return;
+        // }
 
         tokio::pin!(timeout);
         let result = tokio::select! {
@@ -170,7 +141,7 @@ pub async fn worker(
 
         let mut cmd = tokio::process::Command::new("bash");
         cmd.arg(test_runner.join(format!("{}-cleanup.sh", spec.job_spec)));
-        setup_args(&mut cmd, &spec, logfile.file_path());
+        setup_args(&mut cmd, logfile.file_path());
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
@@ -178,7 +149,15 @@ pub async fn worker(
                     "Failed to spawn {}-cleanup.sh process: {e:?}, killing worker",
                     spec.job_spec
                 );
-                return;
+                break 'run JobTermination {
+                    job_id: spec.id,
+                    log: Log {
+                        log: vec![],
+                        truncated: false,
+                    },
+                    result: JobResult::Error,
+                    now: Utc::now(),
+                };
             }
         };
         let pid = child.id();
@@ -196,12 +175,28 @@ pub async fn worker(
                     Ok(exit_status) => {
                         if !exit_status.success() {
                             tracing::error!("{}-cleanup.sh process exited unsuccesfully with exit code {exit_status}, killing worker", spec.job_spec);
-                            return
+                            break 'run JobTermination {
+                                job_id: spec.id,
+                                log: Log {
+                                    log: vec![],
+                                    truncated: false,
+                                },
+                                result: JobResult::Error,
+                                now: Utc::now(),
+                            };
                         }
                     }
                     Err(e) => {
                         tracing::error!("Failed to wait() for {}-cleanup.sh process with PID {pid:?}: {e:?}, killing worker", spec.job_spec);
-                        return
+                        break 'run JobTermination {
+                            job_id: spec.id,
+                            log: Log {
+                                log: vec![],
+                                truncated: false,
+                            },
+                            result: JobResult::Error,
+                            now: Utc::now(),
+                        };
                     }
                 }
             }
@@ -233,19 +228,14 @@ pub async fn worker(
             }
         };
 
-        if let Err(e) = output
-            .send(WorkerMsg::Stopped {
-                job_id: spec.id,
-                log,
-                result,
-                now: Utc::now(),
-            })
-            .await
-        {
-            tracing::error!("Worker failed to send Stopped message: {e:?}, killing worker");
-            return;
+        JobTermination {
+            job_id: spec.id,
+            log,
+            result,
+            now: Utc::now(),
         }
-
-        drop(_enter);
+    };
+    if let Err(_) = output.send(result) {
+        tracing::error!("Failed to send job termination: dispatcher channel closed");
     }
 }
