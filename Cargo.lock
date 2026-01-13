@@ -738,6 +738,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gradecope-ctl"
+version = "0.1.0"
+dependencies = [
+ "gradecope-proto",
+]
+
+[[package]]
 name = "gradecope-proto"
 version = "0.1.0"
 dependencies = [

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["gradecope-proto", "gradecope-runner","gradecope-switchboard"]
+members = ["gradecope-proto", "gradecope-runner","gradecope-switchboard","gradecope-ctl"]
 
 [workspace.dependencies]
 tokio = { version = "1.49.0", features = ["net", "rt"] }

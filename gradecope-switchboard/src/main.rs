@@ -72,7 +72,7 @@ async fn main() {
 
     // --- Open database connection pool
     let pool = match sqlx::postgres::PgPoolOptions::new()
-        .connect_with(PgConnectOptions::new())
+        .connect_with(std::env::var("DATABASE_URL").expect("DATABASE_URL must be set").parse().expect("invalid DATABASE_URL"))
         .await
     {
         Ok(t) => t,
@@ -119,4 +119,5 @@ async fn main() {
 
     // // --- Shut down submission socket listeners
     // submit_listeners.close().await;
+    // cli_listener.close().await;
 }
