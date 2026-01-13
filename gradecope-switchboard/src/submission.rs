@@ -4,7 +4,7 @@ use bytes::{BufMut as _, BytesMut};
 use futures::FutureExt as _;
 use futures_concurrency::future::Race as _;
 use tokio::{
-    io::AsyncReadExt as _, net::UnixStream, sync::oneshot, task::JoinHandle, time::timeout,
+    io::{AsyncReadExt as _, AsyncWriteExt as _}, net::UnixStream, sync::oneshot, task::JoinHandle, time::timeout,
 };
 use uuid::Uuid;
 
@@ -40,7 +40,7 @@ async fn accept_submission(
     user: &SqlUser,
     mut stream: UnixStream,
 ) -> eyre::Result<()> {
-    let buffer = timeout(Duration::from_millis(100), async move {
+    let (buffer, mut stream) = timeout(Duration::from_millis(100), async move {
         let mut buf = BytesMut::with_capacity(1024);
         loop {
             match stream.read_buf(&mut buf).await {
@@ -59,7 +59,7 @@ async fn accept_submission(
                 eyre::bail!("received too many bytes from socket")
             }
         }
-        Ok(buf.freeze())
+        Ok((buf.freeze(), stream))
     })
     .await
     // wrap timeout errors
@@ -120,6 +120,8 @@ async fn accept_submission(
 
     let job_id = Uuid::from_u128(rand::random());
 
+    // TODO: JOB QUOTAS
+
     sqlx::query!(
         r#"
         INSERT INTO jobs (id, owner, job_type, commit, state, submit_timestamp)
@@ -133,6 +135,8 @@ async fn accept_submission(
     )
     .execute(&server_ctx.pool)
     .await?;
+    let f = format!("> gradecope: Successfully started job \x1b[1;32m{job_id}\x1b[0m\r\n");
+    let _ = stream.write_all(f.as_bytes()).await;
 
     Ok(())
 }
