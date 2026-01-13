@@ -1,18 +1,19 @@
 use std::{sync::Arc, time::Duration};
 
-use bytes::{BufMut as _, BytesMut};
 use futures::FutureExt as _;
 use futures_concurrency::future::Race as _;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _}, net::UnixStream, sync::oneshot, task::JoinHandle, time::timeout,
 };
 use uuid::Uuid;
-
+use gradecope_proto::submit::Submission;
 use crate::{ServerCtx, sql::SqlUser};
+use crate::sql::JobState;
 
 struct SubmissionListener {
+    #[allow(unused)]
     user: SqlUser,
-    cancel_notifier: tokio::sync::oneshot::Sender<()>,
+    cancel_notifier: oneshot::Sender<()>,
     join_handle: JoinHandle<()>,
 }
 pub struct SubmissionListenerSet {
@@ -35,108 +36,160 @@ impl SubmissionListenerSet {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum SubmitError {
+    #[error("Too many active jobs: {active} (user quota is {max})")]
+    Quota {
+        active: u32,
+        max: u32,
+    },
+    #[error("Too many recent jobs: submitted {count} in the last hour (user quota is {max}")]
+    TimeQuota {
+        count: u32,
+        max: u32,
+    },
+    #[error("Internal error")]
+    Internal,
+    #[error("Invalid job type: {spec}")]
+    InvalidSpec { spec: String },
+}
+
+#[tracing::instrument(fields(user = %user), skip(user, stream, server_ctx))]
 async fn accept_submission(
     server_ctx: &ServerCtx,
     user: &SqlUser,
     mut stream: UnixStream,
 ) -> eyre::Result<()> {
-    let (buffer, mut stream) = timeout(Duration::from_millis(100), async move {
-        let mut buf = BytesMut::with_capacity(1024);
-        loop {
-            match stream.read_buf(&mut buf).await {
-                Ok(0) => break,
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to read from submission socket stream for user {user_name}: {e:?}",
-                        user_name = &user.name
-                    );
-                    eyre::bail!("failed to read from stream: {e:?}");
+    let (stream, mut sink) = stream.split();
+    let res : Result<Uuid, SubmitError> = try {
+        const BUF_CAP: usize = 1024;
+        let mut buffer = Vec::new();
+        match timeout(Duration::from_millis(256),
+                      stream.take(BUF_CAP as u64 + 1).read_to_end(&mut buffer)
+        ).await {
+            Ok(Ok(t)) => {
+                if t > BUF_CAP {
+                    tracing::error!("Failed to read from user {user_name}'s submission socket: input too long", user_name = &user.name);
+                    eyre::bail!("input too long")
                 }
             }
-            if !buf.has_remaining_mut() {
-                tracing::error!("Submission socket stream yielding too many bytes, closing");
-                eyre::bail!("received too many bytes from socket")
+            Ok(Err(e)) => {
+                tracing::error!("Failed to read from user {user_name}'s submission socket: {e}", user_name = &user.name);
+                Err(SubmitError::Internal)?
+            }
+            Err(_elapsed) => {
+                tracing::error!(
+                    "Timed out while reading from submission socket stream for user {user_name}",
+                    user_name = &user.name
+                );
+                Err(SubmitError::Internal)?
             }
         }
-        Ok((buf.freeze(), stream))
-    })
-    .await
-    // wrap timeout errors
-    .inspect_err(|_| {
-        tracing::error!(
-            "Timed out while reading from submission socket stream for user {user_name}",
-            user_name = &user.name
-        );
-    })
-    .map_err(Into::into)
-    // flatten timeout and interior errors and bubble
-    .flatten()?;
 
-    #[derive(Debug, serde::Deserialize, serde::Serialize)]
-    struct Submission {
-        user: String,
-        commit: String,
-        spec: String,
-    }
+        let submission: Submission = serde_json::from_slice(&buffer[..]).map_err(|e|  {
+                tracing::error!("Error deserializing submission: {e}");
+                SubmitError::Internal })?;
 
-    let submission: Submission = serde_json::from_slice(&buffer[..])
-        .inspect_err(|e| tracing::error!("Error deserializing submission: {e:?}"))?;
-
-    if submission.user != user.name {
-        tracing::warn!(
-            "Username mismatch: submission {submission:?} vs. socket for user {}",
-            user.name
-        );
-        eyre::bail!("username mismatch");
-    }
-
-    tracing::debug!("Received submission {submission:?}");
-
-    let job_type_id = match sqlx::query!(
-        "SELECT job_types.id FROM job_types WHERE spec = $1 LIMIT 1;",
-        submission.spec
-    )
-    .fetch_one(&server_ctx.pool)
-    .await
-    {
-        Ok(t) => t.id,
-        Err(e) => {
-            tracing::warn!(
-                "In submission {submission:?}, no such job spec {spec}: {e:?}",
-                spec = submission.spec
+        if submission.user != user.name {
+            tracing::error!(
+                "Username mismatch: submission {submission:?} vs. socket for user {}",
+                user.name
             );
-            eyre::bail!("no such job spec");
+            Err(SubmitError::Internal)?
         }
+
+        tracing::debug!("Received submission {submission:?}");
+
+        let job_type_id = match sqlx::query!(
+            "SELECT job_types.id FROM job_types WHERE job_types.spec = $1 LIMIT 1;",
+            submission.spec
+        )
+            .fetch_one(&server_ctx.pool)
+            .await
+        {
+            Ok(t) => t.id,
+            Err(e) => {
+                tracing::warn!(
+                    "In submission {submission:?}, no such job spec {spec}: {e:?}",
+                    spec = submission.spec
+                );
+                Err(SubmitError::InvalidSpec { spec: submission.spec.clone() })?
+            }
+        };
+
+        let active_jobs = match sqlx::query!(
+            "SELECT COUNT(*) FROM jobs WHERE owner = $1 AND (state <> 'completed' OR state <> 'canceled')",
+            user.id,
+        ).fetch_one(&server_ctx.pool)
+            .await {
+            Ok(t) => {
+                t.count.unwrap_or(0)
+            }
+            Err(e) => {
+                tracing::error!("Failed to fetch active job count: {e}");
+                Err(SubmitError::Internal)?
+            }
+        };
+        if active_jobs < 0 {
+            tracing::error!("Absurd value for active job count: {active_jobs}");
+            Err(SubmitError::Internal)?
+        }
+
+        if active_jobs >= i64::from(server_ctx.opts.quota_max_concurrent_jobs) {
+            tracing::debug!("User reached concurrent job count quota");
+            Err(SubmitError::Quota { active: active_jobs.try_into().unwrap_or(u32::MAX), max: server_ctx.opts.quota_max_concurrent_jobs })?
+        }
+
+        let jobs_last_hour = match sqlx::query!(
+            r#"SELECT COUNT(*) FROM "jobs" WHERE owner = $1 AND submit_timestamp >= NOW() - INTERVAL '1 HOUR';"#,
+            user.id
+        ).fetch_one(&server_ctx.pool).await {
+            Ok(t) => t.count.unwrap_or(0),
+            Err(e) => {
+                tracing::error!("Failed to fetch number of submitted jobs in last hour: {e}");
+                Err(SubmitError::Internal)?
+            }
+        };
+        if jobs_last_hour >= i64::from(server_ctx.opts.quota_jobs_per_hr) {
+            tracing::debug!("User reached per-hour job quota");
+            Err(SubmitError::TimeQuota { count: jobs_last_hour.try_into().unwrap_or(u32::MAX), max: server_ctx.opts.quota_jobs_per_hr })?
+        }
+
+        let job_id = Uuid::from_u128(rand::random());
+
+        match sqlx::query!(
+            r#"
+            INSERT INTO jobs (id, owner, job_type, commit, state, submit_timestamp)
+            VALUES ($1, $2, $3, $4, $5, now());
+            "#,
+            job_id,
+            user.id,
+            job_type_id,
+            submission.commit,
+            JobState::Submitted as JobState,
+        )
+            .execute(&server_ctx.pool)
+            .await {
+            Ok(_) => (),
+            Err(e) => {
+                tracing::error!("Failed to insert job: {e}");
+                Err(SubmitError::Internal)?
+            }
+        }
+
+        job_id
     };
-    #[derive(sqlx::Type)]
-    #[sqlx(type_name = "job_state", rename_all = "lowercase")]
-    enum JobState {
-        Submitted,
-        Started,
-        Canceled,
-        Finished,
+
+    match res {
+        Ok(job_id) => {
+            let f = format!("> gradecope: Successfully started job \x1b[1;32m{job_id}\x1b[0m\r\n");
+            let _ = sink.write_all(f.as_bytes()).await;
+        }
+        Err(e) => {
+            let _ = sink.write_all(b"> gradecope: \x1b[1;31mFailed to submit job\x1b[0m.\r\n").await;
+            let _ = sink.write_all(format!("> gradecope: Reason: {e}\r\n").as_bytes()).await;
+        }
     }
-
-    let job_id = Uuid::from_u128(rand::random());
-
-    // TODO: JOB QUOTAS
-
-    sqlx::query!(
-        r#"
-        INSERT INTO jobs (id, owner, job_type, commit, state, submit_timestamp)
-        VALUES ($1, $2, $3, $4, $5, now());
-        "#,
-        job_id,
-        user.id,
-        job_type_id,
-        submission.commit,
-        JobState::Submitted as JobState,
-    )
-    .execute(&server_ctx.pool)
-    .await?;
-    let f = format!("> gradecope: Successfully started job \x1b[1;32m{job_id}\x1b[0m\r\n");
-    let _ = stream.write_all(f.as_bytes()).await;
 
     Ok(())
 }

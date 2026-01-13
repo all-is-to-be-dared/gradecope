@@ -59,3 +59,12 @@ pub mod runner {
         ) -> Vec<uuid::Uuid>;
     }
 }
+
+pub mod submit {
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    pub struct Submission {
+        pub user: String,
+        pub commit: String,
+        pub spec: String,
+    }
+}

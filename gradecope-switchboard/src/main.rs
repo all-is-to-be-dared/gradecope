@@ -1,3 +1,5 @@
+#![feature(try_blocks)]
+
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
