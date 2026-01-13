@@ -8,9 +8,9 @@ apt update
 apt upgrade
 
 # amd64:
-#sudo apt install -y postgresql-common
-#sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-#sudo apt install -y postgresql-18
+sudo apt install -y postgresql-common
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+sudo apt install -y postgresql-18
 # arm64:
 #sudo apt install postgresql-17
 
@@ -33,10 +33,7 @@ fi
 # Note: mostly for organizational purposes
 addgroup gradecope-students
 
-# Note: equivalent to CREATE DATABASE "gradecope" IF NOT EXISTS;
-if ! psql -c '\l' --csv | grep 'gradecope,' ; then
-  psql -c 'CREATE DATABASE "gradecope";'
-fi
+sudo -u postgres createuser gradecope
+sudo -u postgres createdb -O gradecope gradecope
 
-# Note: we expressly do NOT run `INIT.sql` because that will drop all tables if the database
-#       already exists.
+psql -f init.sql
