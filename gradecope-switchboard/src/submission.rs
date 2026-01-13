@@ -190,7 +190,7 @@ pub async fn spawn_socket_listeners(
                     Branch::Accept(Ok((stream, _remote_addr))) => {
                         if let Err(e) = accept_submission(&server_ctx2, &user2, stream).await {
                             tracing::warn!(
-                                "Unable to process submission from socket {socket_path}: {e:?}",
+                                "Unable to process submission from socket {socket_path}: {e}",
                                 socket_path = socket_path.display()
                             );
                         }

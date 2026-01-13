@@ -2,7 +2,7 @@
 
 path=$(pwd)
 repo_path="${path}/.."
-socket_path="${path}/../../gradecope-submit.sock"
+socket_path="${path}/../../gradecope-sockets/gradecope-submit.sock"
 
 
 user=$(whoami)
