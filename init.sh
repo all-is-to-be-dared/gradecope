@@ -3,26 +3,21 @@
 SELF_PATH="$0"
 SELF_DIR=$(dirname "${SELF_PATH}")
 source "${SELF_DIR}/style.sh"
-source "config.env"
+source "${SELF_DIR}/config.sh"
+source "${SELF_DIR}/pubkeys.sh" # GRADECOPE_<role>_PUBKEYS : string
 
-if [[ $# -ne 1 ]] ; then
-  echo -e "${FERR}: expected exactly 1 argument"
+if [[ $# -gt 0 ]] ; then
+  echo -e "${FERR}: expected no arguments"
   exit 1
 fi
-STAGE="$1"
 
-case "${STAGE}" in
-  "stage0")
-    @stage0
-    ;;
-  "stage1")
-    @stage1
-    ;;
-esac
+# -------------------------------------------------------------------------------------------------
+# HELPERS
 
 @create-ssh-user () {
-  local USER, HOME_DIR, SSH_DIR, AUTHORIZED_KEYS
+  local USER, PUBKEYS, HOME_DIR, SSH_DIR, AUTHORIZED_KEYS
   USER="$1"
+  PUBKEYS="$2"
 
   adduser --disabled-password --comment '' "${USER}"
   local AUTHORIZED_KEYS
@@ -34,20 +29,11 @@ esac
   sudo chmod 0755 "${HOME_DIR}"
   sudo chmod 0700 "${SSH_DIR}"
   sudo chmod 0600 "${AUTHORIZED_KEYS}"
-  echo "${FINF}: please remember to add SSH keys to ${AUTHORIZED_KEYS}"
+  echo "${PUBKEYS}" | sudo -u "${USER}" tee "${AUTHORIZED_KEYS}" > /dev/null
 }
 
-@stage0 () {
-  if [[ $(whoami) != "root" ]] ; then
-    echo -e "${FERR}: stage0 needs to run as root"
-    exit 1
-  fi
-
-  @create-ssh-user "${GRADECOPE_SWITCHBOARD_USER}"
-  @create-ssh-user "${GRADECOPE_RUNNER_USER}"
-
-  sudo -u "${GRADECOPE_SWITCHBOARD_USER}" "${SELF_PATH}" 'stage1'
-}
+# -------------------------------------------------------------------------------------------------
+# INSTALLER STAGES
 
 @stage1 () {
   if [[ $(whoami) != "${GRADECOPE_SWITCHBOARD_USER}" ]] ; then
@@ -121,3 +107,21 @@ esac
   # Other essential packages
   sudo apt install -y uhubctl uuid socat caddy
 }
+
+###########
+## stage0 setup script is run as root and sets up the switchboard and runner users
+## It exits by sudo-ing as the switchboard user and running the stage1 setup script
+@stage0 () {
+  if [[ $(whoami) != "root" ]] ; then
+    echo -e "${FERR}: stage0 needs to run as root"
+    exit 1
+  fi
+
+  @create-ssh-user "${GRADECOPE_SWITCHBOARD_USER}" "${GRADECOPE_SWITCHBOARD_PUBKEYS}"
+  @create-ssh-user "${GRADECOPE_RUNNER_USER}" "${GRADECOPE_RUNNER_PUBKEYS}"
+
+  sudo -u "${GRADECOPE_SWITCHBOARD_USER}" @stage1
+}
+
+
+@stage0

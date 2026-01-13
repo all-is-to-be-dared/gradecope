@@ -1,0 +1,10 @@
+#!/bin/bash
+
+PREFIX="\x1b[32mgradecope\x1b[0m: "
+
+printf "${PREFIX}\n"
+printf "${PREFIX} Hi \x1b[1m%s\x1b[0m! You've successfully authenticated, but I do not\n" "$(whoami)"
+printf "${PREFIX} provide interactive shell access.\n"
+printf "${PREFIX}\n"
+
+exit 128

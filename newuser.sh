@@ -9,7 +9,7 @@ source "${SELF_PATH}/style.sh"
 # -------------------------------------------------------------------------------------------------
 # Settings
 
-source "${SELF_PATH}/config.env"
+source "${SELF_PATH}/config.sh"
 
 # -------------------------------------------------------------------------------------------------
 # Database helper
@@ -48,7 +48,8 @@ fi
 # we define a couple of utility functions.
 
 @cleanup () {
-  sudo usermod -rG "${STUDENT}" gradecope
+  sudo usermod -rG "${STUDENT}" "${GRADECOPE_SWITCHBOARD_USER}"
+  sudo usermod -rG "${STUDENT}" "${GRADECOPE_RUNNER_USER}"
   sudo deluser --remove-home "${STUDENT}"
   @pg-run "DELETE FROM users WHERE name = '${STUDENT}';"
   exit 1
@@ -65,14 +66,14 @@ fi
   local group="$2"
 
   if ! sudo usermod -aG "${group}" "${user}" ; then
-    echo -e "${FERR}: couldn't add user ${STUSR}${user}${RST} to group ${STGRP}${group}${RST}\n"
+    echo -e "${FERR}: couldn't add user ${STUSR}${user}${RST} to group ${STGRP}${group}${RST}"
     @cleanup
   else
-    echo -e "Added user ${STUSR}${user}${RST} to group ${STGRP}${group}${RST}\n"
+    echo -e "Added user ${STUSR}${user}${RST} to group ${STGRP}${group}${RST}"
   fi
 }
 
-@add-group "${STUDENT}" "${GRADECOPE_STUDENTS_GROUP}}"
+@add-group "${STUDENT}" "${GRADECOPE_STUDENTS_GROUP}"
 
 # -------------------------------------------------------------------------------------------------
 # Create and set up git repo
@@ -85,25 +86,25 @@ fi
 REPO="/home/${STUDENT}/gradecope-repo"
 
 if ! sudo -u "${STUDENT}" mkdir -p "$REPO" ; then
-  echo -e "${FERR}: failed to create directory ${STPTH}${REPO}${RST}\n"
+  echo -e "${FERR}: failed to create directory ${STPTH}${REPO}${RST}"
   @cleanup
 else
-  echo -e "Created directory ${STPTH}${REPO}${RST}\n"
+  echo -e "Created directory ${STPTH}${REPO}${RST}"
 fi
 
 if ! sudo -u "${STUDENT}" env GIT_DIR="${REPO}/.git" git init --quiet --bare ; then
-  echo -e "${FERR}: failed to initialize empty git repository in ${STPTH}${REPO}/.git${RST}\n"
+  echo -e "${FERR}: failed to initialize empty git repository in ${STPTH}${REPO}/.git${RST}"
   @cleanup
 else
-  echo -e "Initialized empty git repository in ${STPTH}${REPO}/.git${RST}\n"
+  echo -e "Initialized empty git repository in ${STPTH}${REPO}/.git${RST}"
 fi
 
 @git-set-option() {
   if ! sudo -u "${STUDENT}" env GIT_DIR="${REPO}/.git" git config --local "$1" "$2" ; then
-    echo -e "${FERR}: failed to set ${STGOP}${1}${RST}=${ITA}${2}${RST}\n"
+    echo -e "${FERR}: failed to set ${STGOP}${1}${RST}=${ITA}${2}${RST}"
     @cleanup
   else
-    echo -e "Set ${STGOP}${1}${RST}=${ITA}${2}${RST}\n"
+    echo -e "Set ${STGOP}${1}${RST}=${ITA}${2}${RST}"
   fi
 }
 
@@ -115,10 +116,10 @@ fi
 
 POST_RECEIVE_PATH="${REPO}/.git/hooks/post-receive"
 if ! sudo cp "${SELF_PATH}/post-receive.sh" "${POST_RECEIVE_PATH}" ; then
-  echo -e "${FERR}: failed to install post-receive hook to ${STPTH}${POST_RECEIVE_PATH}${RST}\n"
+  echo -e "${FERR}: failed to install post-receive hook to ${STPTH}${POST_RECEIVE_PATH}${RST}"
   @cleanup
 else
-  echo -e "Installed ${STPTH}${POST_RECEIVE_PATH}${RST}\n"
+  echo -e "Installed ${STPTH}${POST_RECEIVE_PATH}${RST}"
 fi
 
 sudo chown "${STUDENT}":"${STUDENT}" "${POST_RECEIVE_PATH}"
@@ -134,15 +135,6 @@ sudo chmod u+x "${POST_RECEIVE_PATH}"
 # directory, with group write permissions, and navigable by the $student group.
 sudo -u "${STUDENT}" mkdir -p "/home/${STUDENT}/gradecope-sockets"
 sudo chmod g+x "/home/${STUDENT}/gradecope-sockets"
-
-# -------------------------------------------------------------------------------------------------
-# Fix permissions
-#
-# This is a just-in-case to fix any issues that might've cropped up with user/group ownership of
-# $student's files. There are a few specific things that this fixes.
-
-sudo chown -R "${STUDENT}" "/home/${STUDENT}"
-echo -e "Fixed permissions for ${STPTH}/home/${STUDENT}${RST}\n"
 
 # -------------------------------------------------------------------------------------------------
 # Add gradecope users to the user's group so that we can access their files
@@ -161,10 +153,10 @@ echo -e "Fixed permissions for ${STPTH}/home/${STUDENT}${RST}\n"
 UUID=$(uuid -v 4)
 
 if ! @pg-run "INSERT INTO users (id, name) VALUES ('${UUID}', '$STUDENT');" ; then
-  echo -e "${FERR}: failed to add user ${STUSR}${STUDENT}${RST} to database\n"
+  echo -e "${FERR}: failed to add user ${STUSR}${STUDENT}${RST} to database"
   @cleanup
 else
-  echo -e "Added user ${STUSR}${STUDENT}${RST} to database\n"
+  echo -e "Added user ${STUSR}${STUDENT}${RST} to database"
 fi
 
 # -------------------------------------------------------------------------------------------------
@@ -184,9 +176,32 @@ HEREDOC
 # observability.
 
 SSH_DIR="/home/${STUDENT}/.ssh"
+
 sudo -u "${STUDENT}" mkdir -p "${SSH_DIR}"
-echo "${SSH_PUBKEY}" >> "${SSH_DIR}/authorized_keys"
+printf "no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty %s" "${SSH_PUBKEY}" \
+  | sudo tee -a "${SSH_DIR}/authorized_keys" > /dev/null
+# SSH is very picky about permissions
 sudo chmod 0700 "${SSH_DIR}"
 sudo chmod 0600 "${SSH_DIR}/authorized_keys"
 
-C
+echo -e "Set up SSH for ${STUSR}${STUDENT}${RST}"
+
+# -------------------------------------------------------------------------------------------------
+# Harden SSH: non-interactive login only, and pass everything through git-shell
+
+sudo chsh -s "$(command -v git-shell)" "${STUDENT}"
+sudo cp -R "${SELF_PATH}/git-shell-commands" "/home/${STUDENT}/"
+# Suppress default banner; only print the one in no-interactive-login
+sudo touch "/home/${STUDENT}/.hushlogin"
+
+echo -e "Hardened SSH configuration for ${STUSR}${STUDENT}${RST}"
+
+# -------------------------------------------------------------------------------------------------
+# Fix permissions
+#
+# This is a just-in-case to fix any issues that might've cropped up with user/group ownership of
+# $student's files. There are a few specific things that this fixes.
+
+sudo chown -R "${STUDENT}" "/home/${STUDENT}"
+echo -e "Fixed permissions for ${STPTH}/home/${STUDENT}${RST}"
+
