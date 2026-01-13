@@ -28,7 +28,7 @@ CREATE TABLE job_types (
 CREATE TYPE job_state AS ENUM(
     /* Job was submitted and is in queue */
     'submitted',
-    /* Job is was started on the test runner */
+    /* Job was started on the test runner */
     'started',
     /* Job was canceled for some reason; this could be because of:
         - runner failure
@@ -37,7 +37,7 @@ CREATE TYPE job_state AS ENUM(
      */
     'canceled',
     /* Job ran to completion */
-    'finished' );
+    'completed' );
 
 /* All submitted jobs, regardless of job status
  */
@@ -79,7 +79,7 @@ CREATE TABLE jobs (
 
     /* full text of the run log, set if state is started, finished, or possibly if canceled */
     run_log
-        TEXT
+        BYTEA
         NULL
         DEFAULT NULL,
 
@@ -99,7 +99,7 @@ CREATE TABLE jobs (
 
     /* if state is started or finished, then start_timestamp is not null */
     CHECK(
-        NOT( state = 'started' OR state = 'finished' )
+        NOT( state = 'started' OR state = 'completed' )
         OR start_timestamp IS NOT NULL ),
     /* if state is submitted, then start_timestamp is null */
     CHECK(NOT( state = 'submitted') OR start_timestamp IS NULL ),
@@ -114,5 +114,5 @@ CREATE TABLE jobs (
     /* state is canceled IFF canceled_timestamp is not null */
     CHECK( ( state = 'canceled' ) = ( canceled_timestamp IS NOT NULL ) ),
     CHECK( ( state = 'canceled' ) = ( cancel_reason IS NOT NULL ) ),
-    CHECK( ( state = 'finished' ) = ( test_result IS NOT NULL ) )
+    CHECK( ( state = 'completed' ) = ( test_result IS NOT NULL ) )
 );
