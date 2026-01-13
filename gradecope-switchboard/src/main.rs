@@ -29,7 +29,7 @@ pub struct Opts {
     #[arg(long, default_value = "gradecope-repo")]
     repo_path: String,
     /// Path, relative to user account home directories, where submit socket is located
-    #[arg(long, default_value = "gradecope-submit.sock")]
+    #[arg(long, default_value = "gradecope-sockets/submit.sock")]
     submit_socket_path: String,
     /// Path of admin socket
     #[arg(long, default_value = "/home/gradecope/gradecope-admin.sock")]

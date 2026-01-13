@@ -161,6 +161,12 @@ pub async fn spawn_socket_listeners(
             );
         }
         let socket_path = user_homedir.join(&server_ctx.opts.submit_socket_path);
+        if socket_path.exists() {
+            if let Err(e) = tokio::fs::remove_file(&socket_path).await {
+                tracing::error!("Unable to remove old socket at {}: {e}", socket_path.display());
+                Err(e)?;
+            }
+        }
         let socket_listener = match tokio::net::UnixListener::bind(&socket_path) {
             Ok(t) => t,
             Err(e) => {
