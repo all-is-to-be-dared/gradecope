@@ -7,6 +7,8 @@ source "${SELF_PATH}/style.sh"
 apt update
 apt upgrade
 
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly -y
+
 # amd64:
 sudo apt install -y postgresql-common
 sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
