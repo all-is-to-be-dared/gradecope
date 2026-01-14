@@ -1,5 +1,5 @@
 - [x] switch student users to use git-shell as their login shell to prevent accidents
-- [ ]Set up mTLS with Caddy
+- [ ] Set up mTLS with Caddy
 - [x] gradecope-runner
 - [ ] gradecope-switchboard job dispatch
 - [ ] gradecope-swtichboard admin socket
