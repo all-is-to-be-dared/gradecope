@@ -39,6 +39,11 @@ enum Commands {
 	job_spec: String,
 	id: u32
     },
+    // Admin commands
+    GradesFor {
+	name: String
+    },
+    
 }
 
 #[tokio::main]
