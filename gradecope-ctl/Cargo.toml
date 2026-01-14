@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap.workspace = true
+eyre.workspace = true
 gradecope-proto = { path = "../gradecope-proto" }
+tarpc.workspace = true
+tokio.workspace = true

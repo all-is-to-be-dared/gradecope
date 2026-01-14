@@ -9,6 +9,7 @@ use std::{
 use clap::Parser;
 use sqlx::{PgPool, postgres::PgConnectOptions};
 
+mod ctl;
 mod runner;
 mod sql;
 mod submission;
@@ -36,7 +37,8 @@ pub struct Opts {
     /// Path of admin socket
     #[arg(long, default_value = "/home/gradecope/gradecope-admin.sock")]
     admin_socket_path: String,
-
+    #[arg(long, default_value = "/home/gradecope/gradecope-ctl.sock")]
+    ctl_socket_path: String,
     // --- RUNNER SERVER CONFIG ---
     /// Address to which the thin WebSocket server for the runner to call home to should be bound.
     #[arg(long, default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 10121))]
@@ -72,7 +74,12 @@ async fn main() {
 
     // --- Open database connection pool
     let pool = match sqlx::postgres::PgPoolOptions::new()
-        .connect_with(std::env::var("DATABASE_URL").expect("DATABASE_URL must be set").parse().expect("invalid DATABASE_URL"))
+        .connect_with(
+            std::env::var("DATABASE_URL")
+                .expect("DATABASE_URL must be set")
+                .parse()
+                .expect("invalid DATABASE_URL"),
+        )
         .await
     {
         Ok(t) => t,
@@ -111,6 +118,14 @@ async fn main() {
         Err(e) => {
             tracing::error!("Failed to serve runner control server: {e:?}");
             submit_listeners.close().await;
+            return;
+        }
+    };
+
+    match ctl::spawn_socket(server_ctx.clone()).await {
+        Ok(()) => (),
+        Err(e) => {
+            tracing::error!("Failed to spawn ctl socket: {e:?}");
             return;
         }
     };

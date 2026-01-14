@@ -60,11 +60,30 @@ pub mod runner {
     }
 }
 
-pub mod submit {
+pub mod ctl {
+    use tarpc::context;
+
     #[derive(Debug, serde::Deserialize, serde::Serialize)]
     pub struct Submission {
-        pub user: String,
         pub commit: String,
         pub spec: String,
     }
+
+    pub struct History {
+
+    }
+
+    /// Retrieve 
+    pub struct Status {
+    }
+    
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    pub enum Request {
+        Submission(Submission)
+    }
+
+    #[tarpc::service]
+    pub trait Ctl {
+	async fn hi() -> String;
+    } 
 }

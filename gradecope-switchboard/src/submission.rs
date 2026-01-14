@@ -4,11 +4,17 @@ use bytes::{BufMut as _, BytesMut};
 use futures::FutureExt as _;
 use futures_concurrency::future::Race as _;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _}, net::UnixStream, sync::oneshot, task::JoinHandle, time::timeout,
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    net::UnixStream,
+    sync::oneshot,
+    task::JoinHandle,
+    time::timeout,
 };
 use uuid::Uuid;
 
 use crate::{ServerCtx, sql::SqlUser};
+
+use gradecope_proto::ctl::{Request, Submission};
 
 struct SubmissionListener {
     user: SqlUser,
@@ -35,32 +41,12 @@ impl SubmissionListenerSet {
     }
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-struct Submission {
-    user: String,
-    commit: String,
-    spec: String,
-}
-
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-enum Request {
-    Submission(Submission)
-}
-
 async fn accept_submission(
     server_ctx: &ServerCtx,
     user: &SqlUser,
     mut stream: UnixStream,
-    submission: Submission
+    submission: Submission,
 ) -> eyre::Result<()> {
-    if submission.user != user.name {
-        tracing::warn!(
-            "Username mismatch: submission {submission:?} vs. socket for user {}",
-            user.name
-        );
-        eyre::bail!("username mismatch");
-    }
-
     tracing::debug!("Received submission {submission:?}");
 
     let job_type_id = match sqlx::query!(
@@ -150,10 +136,10 @@ async fn accept_request(
     .flatten()?;
 
     let request: Request = serde_json::from_slice(&buffer[..])
-	.inspect_err(|e| tracing::error!("Error deserializing submission: {e:?}"))?;
+        .inspect_err(|e| tracing::error!("Error deserializing submission: {e:?}"))?;
 
     match request {
-	Request::Submission(s) => accept_submission(server_ctx, user, stream, s).await
+        Request::Submission(s) => accept_submission(server_ctx, user, stream, s).await,
     }
 }
 
@@ -183,7 +169,10 @@ pub async fn spawn_socket_listeners(
         let socket_path = user_homedir.join(&server_ctx.opts.submit_socket_path);
         if socket_path.exists() {
             if let Err(e) = tokio::fs::remove_file(&socket_path).await {
-                tracing::error!("Unable to remove old socket at {}: {e}", socket_path.display());
+                tracing::error!(
+                    "Unable to remove old socket at {}: {e}",
+                    socket_path.display()
+                );
                 Err(e)?;
             }
         }

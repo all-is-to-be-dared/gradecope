@@ -16,7 +16,7 @@ tracing-subscriber = { workspace = true }
 eyre = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
-tarpc = { workspace = true }
+tarpc = { workspace = true, features = ["serde-transport-json", "unix"] }
 
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "uuid"] }
 futures = { version = "0.3.31", default-features = false, features = ["alloc", "std"] }
@@ -24,3 +24,4 @@ futures-concurrency = "7.6.3"
 rand = "0.9.2"
 boxcar = "0.2.14"
 axum = { version = "0.8.8", features = ["ws", "macros", "http2", "tokio"] }
+users = "0.11.0"

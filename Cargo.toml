@@ -13,5 +13,5 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
 uuid = { version = "1.19.0", features = ["serde", "v4"] }
 bytes = { version = "1.11.0" }
-tarpc = { version = "0.37.0", features = ["serde-transport"] }
+tarpc = { version = "0.37.0", features = ["serde-transport-json", "unix"] }
 chrono = { version = "0.4.42", features = ["serde"] }
