@@ -64,7 +64,7 @@ pub async fn run_job(
         // runner command
 
         let mut cmd = tokio::process::Command::new("bash");
-        cmd.arg(test_runner.join(format!("{}-run.sh", spec.job_spec)));
+        cmd.arg(test_runner.join(format!("{}.run.sh", spec.job_spec)));
         setup_args(&mut cmd, logfile.file_path());
         let mut child = match cmd.spawn() {
             Ok(c) => c,
@@ -102,13 +102,13 @@ pub async fn run_job(
             _ = &mut timeout => {
                 // timed out
                 if let Err(e) = child.kill().await {
-                    tracing::error!("Failed to SIGKILL {}-run.sh process with PID {pid:?}: {e:?}", spec.job_spec);
+                    tracing::error!("Failed to SIGKILL {}.run.sh process with PID {pid:?}: {e:?}", spec.job_spec);
                 }
                 JobResult::Timeout
             }
             _ = &mut cancel => {
                 if let Err(e) = child.kill().await {
-                    tracing::error!("Failed to SIGKILL {}-run.sh process with PID {pid:?}: {e:?}", spec.job_spec);
+                    tracing::error!("Failed to SIGKILL {}.run.sh process with PID {pid:?}: {e:?}", spec.job_spec);
                 }
                 JobResult::Canceled
             }
@@ -122,7 +122,7 @@ pub async fn run_job(
                             3 => JobResult::Canceled,
                             4 => JobResult::Timeout,
                             other => {
-                                tracing::error!("Unrecognized exit code from {}-run.sh: {other}", spec.job_spec);
+                                tracing::error!("Unrecognized exit code from {}.run.sh: {other}", spec.job_spec);
                                 JobResult::Error
                             }
                         }).unwrap_or_else(|| {
@@ -130,7 +130,7 @@ pub async fn run_job(
                             JobResult::Error})
                     },
                     Err(e) => {
-                        tracing::error!("Error wait()-ing for {}-run.sh: {e:?}", spec.job_spec);
+                        tracing::error!("Error wait()-ing for {}.run.sh: {e:?}", spec.job_spec);
                         JobResult::Error
                     },
                 }
@@ -140,13 +140,13 @@ pub async fn run_job(
         // cleanup command
 
         let mut cmd = tokio::process::Command::new("bash");
-        cmd.arg(test_runner.join(format!("{}-cleanup.sh", spec.job_spec)));
+        cmd.arg(test_runner.join(format!("{}.cleanup.sh", spec.job_spec)));
         setup_args(&mut cmd, logfile.file_path());
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
                 tracing::error!(
-                    "Failed to spawn {}-cleanup.sh process: {e:?}, killing worker",
+                    "Failed to spawn {}.cleanup.sh process: {e:?}, killing worker",
                     spec.job_spec
                 );
                 break 'run JobTermination {
@@ -167,14 +167,14 @@ pub async fn run_job(
             biased;
             _ = &mut timeout => {
                 if let Err(e) = child.kill().await {
-                    tracing::error!("Failed to SIGKILL {}-cleanup.sh process with PID {pid:?}: {e:?}, killing worker", spec.job_spec);
+                    tracing::error!("Failed to SIGKILL {}.cleanup.sh process with PID {pid:?}: {e:?}, killing worker", spec.job_spec);
                 }
             }
             res = child.wait() => {
                 match res {
                     Ok(exit_status) => {
                         if !exit_status.success() {
-                            tracing::error!("{}-cleanup.sh process exited unsuccesfully with exit code {exit_status}, killing worker", spec.job_spec);
+                            tracing::error!("{}.cleanup.sh process exited unsuccesfully with exit code {exit_status}, killing worker", spec.job_spec);
                             break 'run JobTermination {
                                 job_id: spec.id,
                                 log: Log {
@@ -187,7 +187,7 @@ pub async fn run_job(
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to wait() for {}-cleanup.sh process with PID {pid:?}: {e:?}, killing worker", spec.job_spec);
+                        tracing::error!("Failed to wait() for {}.cleanup.sh process with PID {pid:?}: {e:?}, killing worker", spec.job_spec);
                         break 'run JobTermination {
                             job_id: spec.id,
                             log: Log {

@@ -37,7 +37,12 @@ CREATE TYPE job_state AS ENUM(
      */
     'canceled',
     /* Job ran to completion */
-    'completed' );
+    'completed',
+    /* Job aborted due to unrecoverable error */
+    'error',
+    /* Job aborted due to timeout */
+    'timeout'
+    );
 
 /* All submitted jobs, regardless of job status
  */
@@ -72,8 +77,8 @@ CREATE TABLE jobs (
         NULL
         DEFAULT NULL,
     /* time at which job was canceled */
-    canceled_timestamp
-        TIMESTAMP WITHOUT TIME ZONE
+    stop_timestamp
+    TIMESTAMP WITHOUT TIME ZONE
         NULL
         DEFAULT NULL,
 
@@ -112,7 +117,8 @@ CREATE TABLE jobs (
         NOT( state = 'submitted' OR state = 'started' )
         OR run_log IS NULL ),
     /* state is canceled IFF canceled_timestamp is not null */
-    CHECK( ( state = 'canceled' ) = ( canceled_timestamp IS NOT NULL ) ),
+    CHECK( ( state = 'canceled' OR state = 'completed' OR state = 'completed' OR state = 'error' )
+               = ( stop_timestamp IS NOT NULL ) ),
     CHECK( ( state = 'canceled' ) = ( cancel_reason IS NOT NULL ) ),
     CHECK( ( state = 'completed' ) = ( test_result IS NOT NULL ) )
 );

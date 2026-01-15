@@ -7,7 +7,9 @@ pub enum JobState {
     Submitted,
     Started,
     Canceled,
-    Finished,
+    Completed,
+    Error,
+    Timeout,
 }
 
 #[derive(Debug, Clone)]

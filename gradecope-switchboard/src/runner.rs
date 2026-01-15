@@ -9,11 +9,12 @@ use axum::{
 };
 use bytes::{Buf as _, BufMut as _, BytesMut};
 use futures::{SinkExt, StreamExt as _};
-use gradecope_proto::runner::{JobResponse, JobTermination, Switchboard as _};
+use gradecope_proto::runner::{JobResponse, JobResult, JobSpec, JobTermination, Switchboard as _};
 use tarpc::{context::Context, server::Channel as _};
 use tokio::task::JoinHandle;
 
 use crate::ServerCtx;
+use crate::sql::JobState;
 
 pub struct Handle {
     join_handle: JoinHandle<eyre::Result<()>>,
@@ -26,25 +27,94 @@ struct SwitchboardServer {
 
 impl gradecope_proto::runner::Switchboard for SwitchboardServer {
     async fn request_job(self, _context: Context) -> JobResponse {
-        tracing::debug!("SwitchboardServer::request_job called");
-        JobResponse::Unavailable
+        match sqlx::query!(
+            r#"
+                WITH found AS (UPDATE jobs SET state = 'started', start_timestamp = NOW()
+                WHERE id IN (SELECT id FROM jobs WHERE state = 'submitted' ORDER BY submit_timestamp ASC LIMIT 1)
+                RETURNING id, owner, job_type, commit)
+                SELECT found.id, users.name, job_types.spec, found.commit
+                FROM job_types
+                    INNER JOIN found ON found.job_type = job_types.id
+                    INNER JOIN users ON users.id = found.owner
+                LIMIT 1
+                ;
+               "#,
+        ).fetch_optional(&self.server_ctx.pool)
+            .await {
+            Ok(Some(t)) => {
+                JobResponse::Job(JobSpec {
+                    id: t.id,
+                    repo_path: self.server_ctx.opts.home_prefix.join(t.name).join(&self.server_ctx.opts.repo_path).to_string_lossy().to_string(),
+                    commit_hash: t.commit,
+                    job_spec: t.spec,
+                })
+            },
+            Ok(None) => JobResponse::Unavailable,
+            Err(e) => {
+                todo!()
+            }
+        }
     }
 
     async fn job_stopped(
         self,
-        _context: ::tarpc::context::Context,
+        _context: Context,
         termination: JobTermination,
     ) -> () {
         tracing::info!("received termination: {termination:?}");
+        let JobTermination { job_id, log, result, now } = termination;
+        let new_state = match result {
+            JobResult::Correct | JobResult::Incorrect => JobState::Completed,
+            JobResult::Error => JobState::Error,
+            JobResult::Canceled => JobState::Canceled,
+            JobResult::Timeout => JobState::Timeout,
+        };
+        let test_result = match result {
+            JobResult::Correct => Some("correct"),
+            JobResult::Incorrect => Some("incorrect"),
+            _ => None
+        };
+
+        if let Err(e) = sqlx::query!(
+            r#"UPDATE jobs
+            SET
+                state = $2,
+                stop_timestamp = NOW(),
+                run_log = $3,
+                test_result = $4
+            WHERE jobs.id = $1;
+            ;"#,
+            job_id,
+            new_state as JobState,
+            log.log, // run log
+            test_result, // test result
+        )
+            .execute(&self.server_ctx.pool)
+            .await {
+            tracing::error!("Failed to update job state for {job_id}: {e}");
+            return;
+        }
     }
 
     async fn request_cancellation_notifications(
         self,
-        _context: ::tarpc::context::Context,
+        _context: Context,
         currently_running: Vec<uuid::Uuid>,
     ) -> Vec<uuid::Uuid> {
-        tracing::info!("received cancellation request: {currently_running:?}");
-        vec![]
+        tracing::trace!("received cancellation request: {currently_running:?}");
+        match sqlx::query!(
+            r#"SELECT id FROM jobs WHERE id = ANY($1::uuid[]) AND state IN ('canceled', 'timeout', 'error', 'completed');"#,
+            &currently_running
+        ).fetch_all(&self.server_ctx.pool)
+            .await {
+            Ok(v) => {
+                v.into_iter().map(|row| row.id).collect()
+            },
+            Err(e) => {
+                tracing::error!("Failed to get terminated job subset of {currently_running:?}: {e}");
+                vec![]
+            },
+        }
     }
 }
 
