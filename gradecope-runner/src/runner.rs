@@ -42,6 +42,7 @@ pub async fn run_job(
         }
         cmd.arg(last_port_str);
         cmd.arg(port_prefix_str);
+        cmd.current_dir(std::env::current_dir().unwrap());
     };
 
     let result = 'run: {
@@ -66,6 +67,7 @@ pub async fn run_job(
         let mut cmd = tokio::process::Command::new("bash");
         cmd.arg(test_runner.join(format!("{}.run.sh", spec.job_spec)));
         setup_args(&mut cmd, logfile.file_path());
+        tracing::debug!("Running {cmd:?}");
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {

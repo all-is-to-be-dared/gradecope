@@ -115,6 +115,7 @@ async fn dispatcher(
         }
         _ = poll_interval.tick() => {
             'assignments: while !devices.is_empty() {
+                // tracing::debug!("Submitting job request");
                 let job_spec = match client.request_job(tarpc::context::current()).await {
                     Ok(JobResponse::Job(job_spec)) => job_spec,
                     Ok(JobResponse::Unavailable) => break 'assignments,
@@ -199,6 +200,7 @@ async fn server_proxy(
             msg = server_channel.next() => {
                 match msg {
                     Some(Ok(resp)) => {
+                        // tracing::debug!("server_channel: >> {resp:?}");
                         let s = match serde_json::to_string(&resp) {
                             Ok(t) => t,
                             Err(e) => {
@@ -209,6 +211,8 @@ async fn server_proxy(
                         if let Err(e) = ws.send(Message::Text(s.into())).await {
                             tracing::error!("Failed to send Text with serialized RPC respones: {e:?}");
                             break
+                        } else {
+                            // tracing::debug!("Sent message!");
                         }
                     },
                     Some(Err(e)) => {
