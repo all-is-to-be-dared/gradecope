@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
-#[derive(sqlx::Type)]
+#[derive(Debug, Clone, sqlx::Type)]
 #[sqlx(type_name = "job_state", rename_all = "lowercase")]
 pub enum JobState {
     Submitted,

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH found AS (UPDATE jobs SET state = 'started', start_timestamp = NOW()\n                WHERE id IN (SELECT id FROM jobs WHERE state = 'submitted' ORDER BY submit_timestamp ASC LIMIT 1)\n                RETURNING id, owner, job_type, commit)\n                SELECT found.id, users.name, job_types.spec, found.commit\n                FROM job_types\n                    INNER JOIN found ON found.job_type = job_types.id\n                    INNER JOIN users ON users.id = found.owner\n                LIMIT 1\n                ;\n               ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "spec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "commit",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "230d42eeb97e0ee18c2d908a21e72c57b0b619813111bee99583b0ba65ff7b69"
+}

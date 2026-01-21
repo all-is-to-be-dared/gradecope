@@ -21,9 +21,9 @@ struct Opts {
 enum Commands {
     Hi,
     Submit {
-	job_spec: String
+	job_spec: String,
 	commit: String,
-    }
+    },
     History {
 	job_spec: Option<String>
     },
@@ -51,6 +51,20 @@ async fn main() -> eyre::Result<()> {
 
     match opts.command {
 	Commands::Hi => println!("{}", client.hi(context::current()).await?),
+	Commands::History { job_spec } => {
+	    match client.history(context::current(), job_spec).await? {
+		Ok(jobs) => {
+		    if jobs.is_empty() {
+			println!("No jobs found.");
+		    } else {
+			for job in jobs {
+			    println!("{}\t{}\t{:?}", job.job_spec, job.job_id, job.result);
+			}
+		    }
+		}
+		Err(e) => eprintln!("Error: {e}"),
+	    }
+	}
 	_ => println!("Unimplemented!"),
     }
 

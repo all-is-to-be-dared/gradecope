@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM \"jobs\" WHERE owner = $1 AND submit_timestamp >= NOW() - INTERVAL '1 HOUR';",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "df454bcf0858ed0a9773619b07abe1d8bcb6a3a633ed0309deb787e90f7421cf"
+}

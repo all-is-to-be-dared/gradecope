@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs\n            SET\n                state = $2,\n                stop_timestamp = NOW(),\n                run_log = $3,\n                test_result = $4\n            WHERE jobs.id = $1;\n            ;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "job_state",
+            "kind": {
+              "Enum": [
+                "submitted",
+                "started",
+                "canceled",
+                "completed",
+                "error",
+                "timeout"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7016abb288ab13353ad300693a74fe53f4d03c4fea1d36815c2c59345b59b91d"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO jobs (id, owner, job_type, commit, state, submit_timestamp)\n            VALUES ($1, $2, $3, $4, $5, now());\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "job_state",
+            "kind": {
+              "Enum": [
+                "submitted",
+                "started",
+                "canceled",
+                "completed",
+                "error",
+                "timeout"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c73ad7e562b1f4a6927a1c06f400c7fa07388b1851f230e8199d75f80056bb0"
+}

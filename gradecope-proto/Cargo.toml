@@ -8,3 +8,4 @@ serde = { workspace = true }
 uuid = { workspace = true }
 tarpc = { workspace = true }
 chrono = { workspace = true }
+thiserror.workspace = true

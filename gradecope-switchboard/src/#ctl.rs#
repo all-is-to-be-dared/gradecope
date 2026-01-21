@@ -142,7 +142,10 @@ impl Ctl for CtlService {
     async fn hi(self, _: context::Context) -> String {
 	let name = match self.user().await {
 	    Ok(u) => u.name,
-	    Err(_) => "no name".to_owned()
+	    Err(e) => {
+		tracing::error!("Failed to fetch user: {e}");
+		"no name".to_owned()
+	    }
 	};
 	return format!("Hello, {}!", name);
     }

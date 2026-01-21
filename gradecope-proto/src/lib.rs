@@ -74,8 +74,12 @@ pub mod ctl {
 	PermissionDenied,
 	#[error("not found: {0}")]
 	NotFound(String),
-	#[error("internal error: {0}")]
-	InternalError(String)
+	/// This is cheating... we wrap the .to_string() eyre error in this to
+	/// smuggle it out on the wire
+	#[error("{0}")]
+	InternalError(String),
+	#[error("not implemented")]
+	NotImplemented
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -87,7 +91,7 @@ pub mod ctl {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct JobReference {
 	pub job_spec: String,
-	pub job_id: uuid::Uuid;
+	pub job_id: uuid::Uuid,
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -98,7 +102,9 @@ pub mod ctl {
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum JobResult {
-        Correct,
+        Pending,
+        Running,
+        Completed,
         Incorrect,
         Error,
         Canceled,
@@ -108,14 +114,8 @@ pub mod ctl {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct JobStatus {
 	pub job_spec: String,
-	pub job_id: uuid::Uuid;
-	pub result: JobResult;
-    }
-
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    pub struct Log {
-        pub log: Vec<u8>,
-        pub truncated: bool,
+	pub job_id: uuid::Uuid,
+	pub result: JobResult,
     }
 
     #[tarpc::service]
@@ -129,5 +129,15 @@ pub mod ctl {
 	async fn history(job_spec: Option<String>) -> Result<Vec<JobStatus>, CtlError>;
 	async fn status(job: JobReference) -> Result<JobStatus, CtlError>;
 	async fn log(job: JobReference) -> Result<Log, CtlError>;
+	async fn cancel(job: JobReference) -> Result<JobStatus, CtlError>;
     } 
+}
+
+pub mod submit {
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
+    pub struct Submission {
+        pub user: String,
+        pub commit: String,
+        pub spec: String,
+    }
 }

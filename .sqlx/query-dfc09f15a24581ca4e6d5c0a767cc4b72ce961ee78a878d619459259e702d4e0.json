@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM jobs WHERE id = ANY($1::uuid[]) AND state IN ('canceled', 'timeout', 'error', 'completed');",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dfc09f15a24581ca4e6d5c0a767cc4b72ce961ee78a878d619459259e702d4e0"
+}
