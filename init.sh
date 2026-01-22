@@ -120,6 +120,11 @@ fi
   @create-ssh-user "${GRADECOPE_SWITCHBOARD_USER}" "${GRADECOPE_SWITCHBOARD_PUBKEYS}"
   @create-ssh-user "${GRADECOPE_RUNNER_USER}" "${GRADECOPE_RUNNER_PUBKEYS}"
 
+  # Creeate socket location
+  mkdir /var/run/gradecope
+  chown "${GRADECOPE_SWITCHBOARD_USER}:${GRADECOPE_STUDENTS_GROUP}" /var/run/gradecope
+  chmod 755 /var/run/gradecope
+
   sudo -u "${GRADECOPE_SWITCHBOARD_USER}" @stage1
 }
 
