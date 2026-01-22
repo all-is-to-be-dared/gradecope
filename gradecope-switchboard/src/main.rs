@@ -35,9 +35,9 @@ pub struct Opts {
     #[arg(long, default_value = "gradecope-sockets/submit.sock")]
     submit_socket_path: String,
     /// Path of admin socket
-    #[arg(long, default_value = "/home/gradecope/gradecope-admin.sock")]
+    #[arg(long, default_value = "/var/run/gradecope/gradecope-admin.sock")]
     admin_socket_path: String,
-    #[arg(long, default_value = "/home/gradecope/gradecope-ctl.sock")]
+    #[arg(long, default_value = "/var/run/gradecope/gradecope-ctl.sock")]
     ctl_socket_path: String,
     // --- RUNNER SERVER CONFIG ---
     /// Address to which the thin WebSocket server for the runner to call home to should be bound.

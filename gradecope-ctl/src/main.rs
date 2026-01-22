@@ -6,12 +6,13 @@ use tarpc::{
 };
 
 use clap::{Parser, Subcommand};
-use gradecope_proto::ctl::{Ctl, CtlClient};
+use gradecope_proto::ctl::{Ctl, CtlClient, JobReference};
+use uuid::Uuid;
 
 #[derive(Debug, Parser)]
 #[command(name = "gradecope-ctl")]
 struct Opts {
-    #[arg(long, default_value = "/home/gradecope/gradecope-ctl.sock")]
+    #[arg(long, default_value = "/var/run/gradecope/gradecope-ctl.sock")]
     ctl_socket_path: String,
     #[command(subcommand)]
     command: Commands
@@ -29,15 +30,15 @@ enum Commands {
     },
     Status {
 	job_spec: String,
-	id: u32
+	id: Uuid
     },
     Log {
 	job_spec: String,
-	id: u32
+	id: Uuid
     },
     Cancel {
 	job_spec: String,
-	id: u32
+	id: Uuid
     },
 }
 
@@ -61,6 +62,15 @@ async fn main() -> eyre::Result<()> {
 			    println!("{}\t{}\t{:?}", job.job_spec, job.job_id, job.result);
 			}
 		    }
+		}
+		Err(e) => eprintln!("Error: {e}"),
+	    }
+	}
+	Commands::Status { job_spec, id } => {
+	    let job_ref = JobReference { job_spec, job_id: id };
+	    match client.status(context::current(), job_ref).await? {
+		Ok(status) => {
+		    println!("{}\t{}\t{:?}", status.job_spec, status.job_id, status.result);
 		}
 		Err(e) => eprintln!("Error: {e}"),
 	    }

@@ -9,3 +9,4 @@ eyre.workspace = true
 gradecope-proto = { path = "../gradecope-proto" }
 tarpc.workspace = true
 tokio.workspace = true
+uuid.workspace = true
