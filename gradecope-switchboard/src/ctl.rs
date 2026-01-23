@@ -107,6 +107,41 @@ impl CtlService {
     }
 
     #[tracing::instrument(skip(self))]
+    async fn get_log(&self, job: JobReference) -> eyre::Result<Log> {
+	let user = self.user().await?;
+
+	let row = sqlx::query!(
+	    r#"
+	    SELECT jobs.run_log
+	    FROM jobs
+	    JOIN job_types ON jobs.job_type = job_types.id
+	    WHERE jobs.owner = $1 AND jobs.id = $2 AND job_types.spec = $3
+	    LIMIT 1;
+	    "#,
+	    user.id,
+	    job.job_id,
+	    job.job_spec
+	)
+	.fetch_optional(&self.server_ctx.pool)
+	.await
+	.map_err(|e| {
+	    tracing::error!("Failed to fetch job log: {e}");
+	    eyre::eyre!(CtlError::InternalError(e.to_string()))
+	})?;
+
+	match row {
+	    Some(row) => Ok(Log {
+		log: row.run_log.unwrap_or_default(),
+		truncated: false,
+	    }),
+	    None => eyre::bail!(CtlError::NotFound(format!(
+		"Job {} with spec {} not found",
+		job.job_id, job.job_spec
+	    ))),
+	}
+    }
+
+    #[tracing::instrument(skip(self))]
     async fn get_history(&self, job_spec: Option<String>) -> eyre::Result<Vec<JobStatus>> {
 	let user = self.user().await?;
 
@@ -199,8 +234,10 @@ impl Ctl for CtlService {
 	    .await
 	    .map_err(|e| CtlError::InternalError(e.to_string()))
     }
-    async fn log(self, _: context::Context, _job: JobReference) -> Result<Log, CtlError> {
-	Err(CtlError::NotImplemented)
+    async fn log(self, _: context::Context, job: JobReference) -> Result<Log, CtlError> {
+	self.get_log(job)
+	    .await
+	    .map_err(|e| CtlError::InternalError(e.to_string()))
     }
     async fn cancel(self, _: context::Context, _job: JobReference) -> Result<JobStatus, CtlError> {
 	Err(CtlError::NotImplemented)

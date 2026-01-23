@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t    SELECT jobs.run_log\n\t    FROM jobs\n\t    JOIN job_types ON jobs.job_type = job_types.id\n\t    WHERE jobs.owner = $1 AND jobs.id = $2 AND job_types.spec = $3\n\t    LIMIT 1;\n\t    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "run_log",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "668f3269e91b71e0e1b0b9799dca3c17935d27cce6a399be6b19056960e6e1b5"
+}
