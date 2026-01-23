@@ -5,7 +5,8 @@ use tarpc::{
 };
 
 use clap::{Parser, Subcommand};
-use gradecope_proto::ctl::{CtlClient, JobReference};
+use colored::Colorize;
+use gradecope_proto::ctl::{CtlClient, JobReference, JobResult, JobStatus};
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]
@@ -41,6 +42,52 @@ enum Commands {
     },
 }
 
+fn format_result(result: &JobResult) -> String {
+    match result {
+	JobResult::Pending => "⏳ Pending".yellow().to_string(),
+	JobResult::Running => "⚙️  Running".cyan().to_string(),
+	JobResult::Completed => "✓ Completed".green().to_string(),
+	JobResult::Incorrect => "✗ Incorrect".red().to_string(),
+	JobResult::Error => "⚠ Error".red().bold().to_string(),
+	JobResult::Canceled => "⊘ Canceled".dimmed().to_string(),
+	JobResult::Timeout => "⏱ Timeout".red().to_string(),
+    }
+}
+
+fn print_job_status(status: &JobStatus) {
+    println!("{}    {}", "Spec:".bold(), status.job_spec);
+    println!("{}      {}", "ID:".bold(), status.job_id);
+    println!("{}  {}", "Status:".bold(), format_result(&status.result));
+}
+
+fn print_job_table(jobs: &[JobStatus]) {
+    if jobs.is_empty() {
+	println!("{}", "No jobs found.".dimmed());
+	return;
+    }
+
+    // Find max width for job_spec column
+    let max_spec_width = jobs.iter().map(|j| j.job_spec.len()).max().unwrap_or(0);
+
+    println!(
+	"{:width$}  {:10}  {}",
+	"JOB".bold().underline(),
+	"ID".bold().underline(),
+	"STATUS".bold().underline(),
+	width = max_spec_width
+    );
+
+    for job in jobs {
+	println!(
+	    "{:width$}  {}  {}",
+	    job.job_spec.bold(),
+	    &job.job_id.to_string()[..8].dimmed(),
+	    format_result(&job.result),
+	    width = max_spec_width
+	);
+    }
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let opts = Opts::parse();
@@ -53,28 +100,18 @@ async fn main() -> eyre::Result<()> {
 	Commands::Hi => println!("{}", client.hi(context::current()).await?),
 	Commands::History { job_spec } => {
 	    match client.history(context::current(), job_spec).await? {
-		Ok(jobs) => {
-		    if jobs.is_empty() {
-			println!("No jobs found.");
-		    } else {
-			for job in jobs {
-			    println!("{}\t{}\t{:?}", job.job_spec, job.job_id, job.result);
-			}
-		    }
-		}
-		Err(e) => eprintln!("Error: {e}"),
+		Ok(jobs) => print_job_table(&jobs),
+		Err(e) => eprintln!("{} {e}", "Error:".red().bold()),
 	    }
 	}
 	Commands::Status { job_spec, id } => {
 	    let job_ref = JobReference { job_spec, job_id: id };
 	    match client.status(context::current(), job_ref).await? {
-		Ok(status) => {
-		    println!("{}\t{}\t{:?}", status.job_spec, status.job_id, status.result);
-		}
-		Err(e) => eprintln!("Error: {e}"),
+		Ok(status) => print_job_status(&status),
+		Err(e) => eprintln!("{} {e}", "Error:".red().bold()),
 	    }
 	}
-	_ => println!("Unimplemented!"),
+	_ => eprintln!("{}", "Not implemented yet.".yellow()),
     }
 
     Ok(())

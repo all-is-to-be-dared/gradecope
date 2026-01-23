@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap.workspace = true
+colored = "3"
 eyre.workspace = true
 gradecope-proto = { path = "../gradecope-proto" }
 tarpc.workspace = true

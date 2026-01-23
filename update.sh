@@ -28,4 +28,16 @@ fi
 sudo chown "${GRADECOPE_SWITCHBOARD_USER}:${GRADECOPE_STUDENTS_GROUP}" /var/run/gradecope
 sudo chmod 755 /var/run/gradecope
 
+# Update git-shell-commands for all students
+echo "Updating git-shell-commands for students..."
+for STUDENT in $(getent group "${GRADECOPE_STUDENTS_GROUP}" | cut -d: -f4 | tr ',' ' '); do
+  STUDENT_HOME="/home/${STUDENT}"
+  if [[ -d "${STUDENT_HOME}" ]]; then
+    sudo cp -R "${SELF_DIR}/git-shell-commands" "${STUDENT_HOME}/"
+    sudo chown -R "${STUDENT}:${STUDENT}" "${STUDENT_HOME}/git-shell-commands"
+    sudo chmod 755 "${STUDENT_HOME}/git-shell-commands"/*
+    echo "  -> Updated ${STUDENT}"
+  fi
+done
+
 echo "Done. You may need to restart the switchboard service."
