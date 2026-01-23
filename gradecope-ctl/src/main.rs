@@ -1,12 +1,11 @@
 use tarpc::{
     client, context,
     serde_transport::unix,
-    server::{BaseChannel, Channel},
     tokio_serde::formats::Json,
 };
 
 use clap::{Parser, Subcommand};
-use gradecope_proto::ctl::{Ctl, CtlClient, JobReference};
+use gradecope_proto::ctl::{CtlClient, JobReference};
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]

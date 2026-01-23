@@ -7,7 +7,7 @@ use std::{
 };
 
 use clap::Parser;
-use sqlx::{PgPool, postgres::PgConnectOptions};
+use sqlx::PgPool;
 
 mod ctl;
 mod runner;
@@ -113,7 +113,7 @@ async fn main() {
         }
     };
 
-    let runner_handler = match runner::spawn_handler(server_ctx.clone()).await {
+    let _runner_handler = match runner::spawn_handler(server_ctx.clone()).await {
         Ok(t) => t,
         Err(e) => {
             tracing::error!("Failed to serve runner control server: {e:?}");

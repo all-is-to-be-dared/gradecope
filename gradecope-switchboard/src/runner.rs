@@ -17,6 +17,7 @@ use crate::ServerCtx;
 use crate::sql::JobState;
 
 pub struct Handle {
+    #[allow(dead_code)]
     join_handle: JoinHandle<eyre::Result<()>>,
 }
 
@@ -50,7 +51,7 @@ impl gradecope_proto::runner::Switchboard for SwitchboardServer {
                 })
             },
             Ok(None) => JobResponse::Unavailable,
-            Err(e) => {
+            Err(_) => {
                 todo!()
             }
         }
@@ -62,7 +63,7 @@ impl gradecope_proto::runner::Switchboard for SwitchboardServer {
         termination: JobTermination,
     ) -> () {
         tracing::info!("received termination: {termination:?}");
-        let JobTermination { job_id, log, result, now } = termination;
+        let JobTermination { job_id, log, result, now: _ } = termination;
         let new_state = match result {
             JobResult::Correct | JobResult::Incorrect => JobState::Completed,
             JobResult::Error => JobState::Error,

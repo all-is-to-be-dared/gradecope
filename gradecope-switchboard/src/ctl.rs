@@ -1,9 +1,9 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use crate::{ServerCtx, sql::SqlUser};
 use crate::sql::JobState;
 use gradecope_proto::ctl::{Ctl, CtlError, JobReference, JobResult, JobStatus, Log};
 use tarpc::{
-    client, context,
+    context,
     serde_transport::unix,
     server::{BaseChannel, Channel},
     tokio_serde::formats::Json,
@@ -11,8 +11,6 @@ use tarpc::{
 use futures::StreamExt;
 use tokio::net::unix::UCred;
 use users::get_user_by_uid;
-use uuid::Uuid;
-
 use eyre::OptionExt;
 
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
@@ -42,7 +40,7 @@ struct CtlService {
 impl CtlService {
     async fn user(&self) -> eyre::Result<SqlUser> {
 	let user = get_user_by_uid(self.credentials.uid()).ok_or_eyre("couldn't get ID")?;
-	let username = user.name().to_str().ok_or_eyre("couldn't convert name to &str")?.clone();
+	let username = user.name().to_str().ok_or_eyre("couldn't convert name to &str")?;
 	match sqlx::query_as!(
 	    SqlUser,
 	    "SELECT * FROM users WHERE name = $1 LIMIT 1;",
@@ -52,7 +50,7 @@ impl CtlService {
 	.await
 	{
 	    Ok(t) => Ok(t),
-	    Err(e) => {
+	    Err(_) => {
 		tracing::warn!(
 		    "No such user {username:?}",
 		);
@@ -60,6 +58,7 @@ impl CtlService {
 	    }
 	}
     }
+    #[allow(dead_code)]
     fn check_admin(&self) -> eyre::Result<()> {
 	// TODO
 	eyre::bail!(CtlError::PermissionDenied);
@@ -200,10 +199,10 @@ impl Ctl for CtlService {
 	    .await
 	    .map_err(|e| CtlError::InternalError(e.to_string()))
     }
-    async fn log(self, _: context::Context, job: JobReference) -> Result<Log, CtlError> {
+    async fn log(self, _: context::Context, _job: JobReference) -> Result<Log, CtlError> {
 	Err(CtlError::NotImplemented)
     }
-    async fn cancel(self, _: context::Context, job: JobReference) -> Result<JobStatus, CtlError> {
+    async fn cancel(self, _: context::Context, _job: JobReference) -> Result<JobStatus, CtlError> {
 	Err(CtlError::NotImplemented)
     }
 
