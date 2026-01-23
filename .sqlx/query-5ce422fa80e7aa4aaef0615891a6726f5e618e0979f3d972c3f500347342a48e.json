@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t    SELECT jobs.id, job_types.spec, jobs.state as \"state: JobState\"\n\t\t    FROM jobs\n\t\t    JOIN job_types ON jobs.job_type = job_types.id\n\t\t    WHERE jobs.owner = $1 AND job_types.spec = $2\n\t\t    ORDER BY jobs.submit_timestamp DESC;\n\t\t    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "spec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "state: JobState",
+        "type_info": {
+          "Custom": {
+            "name": "job_state",
+            "kind": {
+              "Enum": [
+                "submitted",
+                "started",
+                "canceled",
+                "completed",
+                "error",
+                "timeout"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5ce422fa80e7aa4aaef0615891a6726f5e618e0979f3d972c3f500347342a48e"
+}

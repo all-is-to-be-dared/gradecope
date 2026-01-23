@@ -8,5 +8,5 @@ clap.workspace = true
 eyre.workspace = true
 gradecope-proto = { path = "../gradecope-proto" }
 tarpc.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 uuid.workspace = true
