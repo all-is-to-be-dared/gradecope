@@ -106,6 +106,16 @@ fi
   # -----------------------------------------------------------------------------------------------
   # Other essential packages
   sudo apt install -y uhubctl uuid socat caddy
+
+  # -----------------------------------------------------------------------------------------------
+  # Build and install gradecope-ctl system-wide
+  # This allows students to use ctl in non-interactive SSH sessions
+
+  source "${HOME}/.cargo/env"
+  cd "${SELF_DIR}"
+  cargo build --release -p gradecope-ctl
+  sudo cp target/release/gradecope-ctl /usr/local/bin/
+  sudo chmod 755 /usr/local/bin/gradecope-ctl
 }
 
 ###########
