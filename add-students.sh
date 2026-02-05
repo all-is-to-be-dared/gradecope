@@ -17,11 +17,6 @@ if [[ ! -f "${CSV_FILE}" ]] ; then
   exit 1
 fi
 
-if [[ $(whoami) != "root" ]] ; then
-  echo "Error: must run as root"
-  exit 1
-fi
-
 while IFS=, read -r EMAIL PUBKEY ; do
   # Skip empty lines and comments
   [[ -z "${EMAIL}" || "${EMAIL}" =~ ^# ]] && continue
