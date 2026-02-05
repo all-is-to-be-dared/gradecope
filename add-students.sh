@@ -26,7 +26,7 @@ while IFS=, read -r EMAIL PUBKEY ; do
 
   echo "Creating user: ${USERNAME}"
 
-  ./newuser.sh $USERNAME $PUBKEY
+  ./newuser.sh $USERNAME "$PUBKEY"
 
   echo "  -> Done"
 done < "${CSV_FILE}"
