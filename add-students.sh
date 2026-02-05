@@ -31,28 +31,7 @@ while IFS=, read -r EMAIL PUBKEY ; do
 
   echo "Creating user: ${USERNAME}"
 
-  # Create user if doesn't exist
-  if ! id "${USERNAME}" &>/dev/null ; then
-    adduser --disabled-password --gecos '' "${USERNAME}"
-    usermod -aG "${GRADECOPE_STUDENTS_GROUP}" "${USERNAME}"
-  fi
-
-  # Set up SSH
-  HOME_DIR="/home/${USERNAME}"
-  SSH_DIR="${HOME_DIR}/.ssh"
-  AUTHORIZED_KEYS="${SSH_DIR}/authorized_keys"
-
-  sudo -u "${USERNAME}" mkdir -p "${SSH_DIR}"
-  chmod 0755 "${HOME_DIR}"
-  chmod 0700 "${SSH_DIR}"
-
-  # Append key if not already present
-  if ! grep -qF "${PUBKEY}" "${AUTHORIZED_KEYS}" 2>/dev/null ; then
-    echo "${PUBKEY}" >> "${AUTHORIZED_KEYS}"
-  fi
-
-  chown -R "${USERNAME}:${USERNAME}" "${SSH_DIR}"
-  chmod 0600 "${AUTHORIZED_KEYS}"
+  ./newuser $USERNAME $PUBKEY
 
   echo "  -> Done"
 done < "${CSV_FILE}"
